@@ -1,203 +1,149 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
+import 'package:tp_formulaire/page/result_page.dart';
 import 'package:tp_formulaire/models/user_data.dart';
 
 class FormPage extends StatefulWidget {
-  const FormPage({Key? key}) : super(key: key);
-
   @override
   _FormPageState createState() => _FormPageState();
 }
 
 class _FormPageState extends State<FormPage> {
-  final _formKey = GlobalKey<FormState>();
-  bool _acceptConditions = false;
-  DateTime? _selectedDate;
-  late String _imagePath;
-  late String _firstName;
-  late String _lastName;
-  late int _age;
-  late String _gender;
+  late TextEditingController _nomController;
+  late TextEditingController _prenomController;
+  late TextEditingController _ageController;
+  late TextEditingController _sexeController;
+  late TextEditingController _dateNaissanceController;
+  late File _photoPath; // Utilisation de File
+  final ImagePicker _picker = ImagePicker();
 
-  Future<void> _selectDate(BuildContext context) async {
+  @override
+  void initState() {
+    super.initState();
+    _nomController = TextEditingController();
+    _prenomController = TextEditingController();
+    _ageController = TextEditingController();
+    _sexeController = TextEditingController();
+    _dateNaissanceController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _nomController.dispose();
+    _prenomController.dispose();
+    _ageController.dispose();
+    _sexeController.dispose();
+    _dateNaissanceController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _chooseImage() async {
+    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+    setState(() {
+      if (pickedFile != null) {
+        _photoPath = File(pickedFile.path); // Convertir en File
+      }
+    });
+  }
+
+  Future<void> _pickDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
     );
-    if (picked != null && picked != _selectedDate) {
+    if (picked != null) {
       setState(() {
-        _selectedDate = picked;
+        _dateNaissanceController.text = DateFormat('dd/MM/yyyy').format(picked);
       });
     }
   }
 
-  Future<void> _pickImage() async {
-    final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      setState(() {
-        _imagePath = pickedFile.path;
-      });
+  String? _validateNotEmpty(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Ce champ est requis';
+    }
+    return null;
+  }
+
+  void _submitForm() {
+    if (_validateNotEmpty(_nomController.text) != null ||
+        _validateNotEmpty(_prenomController.text) != null ||
+        _validateNotEmpty(_ageController.text) != null) {
+      // Vérifie si les champs nom, prénom et âge sont vides
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Veuillez remplir tous les champs requis')),
+      );
+    } else {
+      PersonData person = PersonData(
+        nom: _nomController.text,
+        prenom: _prenomController.text,
+        age: int.parse(_ageController.text),
+        sexe: _sexeController.text,
+        dateNaissance: DateFormat('dd/MM/yyyy').parse(_dateNaissanceController.text),
+        photoPath: _photoPath, // Utilisation de File
+      );
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => ResultPage(person: person)),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Form(
-      key: _formKey,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            TextFormField(
-              decoration: const InputDecoration(
-                labelText: 'Prénom',
+    return Scaffold(
+      appBar: AppBar(title: Text('Formulaire')),
+      body: Padding(
+        padding: EdgeInsets.all(20.0),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              TextFormField(
+                controller: _nomController,
+                decoration: InputDecoration(labelText: 'Nom'),
+                validator: _validateNotEmpty,
               ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Veuillez entrer votre prénom';
-                }
-                return null;
-              },
-              onSaved: (value) {
-                _firstName = value!;
-              },
-            ),
-            const SizedBox(height: 16.0),
-            TextFormField(
-              decoration: const InputDecoration(
-                labelText: 'Nom',
+              TextFormField(
+                controller: _prenomController,
+                decoration: InputDecoration(labelText: 'Prénom'),
+                validator: _validateNotEmpty,
               ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Veuillez entrer votre nom';
-                }
-                return null;
-              },
-              onSaved: (value) {
-                _lastName = value!;
-              },
-            ),
-            const SizedBox(height: 16.0),
-            TextFormField(
-              decoration: const InputDecoration(
-                labelText: 'Âge',
+              TextFormField(
+                controller: _ageController,
+                decoration: InputDecoration(labelText: 'Âge'),
+                keyboardType: TextInputType.number,
+                validator: _validateNotEmpty,
               ),
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-              ],
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Veuillez entrer votre âge';
-                }
-                return null;
-              },
-              onSaved: (value) {
-                _age = int.parse(value!);
-              },
-            ),
-            const SizedBox(height: 16.0),
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(
-                labelText: 'Genre',
+              TextFormField(
+                controller: _sexeController,
+                decoration: InputDecoration(labelText: 'Sexe'),
               ),
-              value: _gender,
-              items: const [
-                DropdownMenuItem(value: 'Homme', child: Text('Homme')),
-                DropdownMenuItem(value: 'Femme', child: Text('Femme')),
-                DropdownMenuItem(value: 'Autre', child: Text('Autre')),
-              ],
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Veuillez sélectionner votre genre';
-                }
-                return null;
-              },
-              onChanged: (value) {
-                setState(() {
-                  _gender = value!;
-                });
-              },
-            ),
-            const SizedBox(height: 16.0),
-            GestureDetector(
-              onTap: () {
-                _selectDate(context);
-              },
-              child: InputDecorator(
-                decoration: InputDecoration(
-                  labelText: 'Date de naissance',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(5.0),
+              GestureDetector(
+                onTap: () => _pickDate(context),
+                child: AbsorbPointer(
+                  child: TextFormField(
+                    controller: _dateNaissanceController,
+                    decoration: InputDecoration(labelText: 'Date de naissance'),
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(_selectedDate == null
-                        ? 'Sélectionnez une date'
-                        : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'),
-                    const Icon(Icons.calendar_today),
-                  ],
-                ),
               ),
-            ),
-            const SizedBox(height: 16.0),
-            GestureDetector(
-              onTap: _pickImage,
-              child: Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  shape: BoxShape.rectangle,
-                  image: _imagePath.isNotEmpty
-                      ? DecorationImage(
-                    fit: BoxFit.cover,
-                    image: FileImage(File(_imagePath)),
-                  )
-                      : null,
-                ),
-                child: _imagePath.isEmpty
-                    ? const Icon(Icons.add_a_photo)
-                    : null,
+              ElevatedButton(
+                onPressed: _chooseImage,
+                child: Text('Choisir une photo'),
               ),
-            ),
-            const SizedBox(height: 16.0),
-            CheckboxListTile(
-              title: const Text('J\'accepte les conditions'),
-              value: _acceptConditions,
-              onChanged: (value) {
-                setState(() {
-                  _acceptConditions = value!;
-                });
-              },
-            ),
-            const SizedBox(height: 16.0),
-            ElevatedButton(
-              onPressed: () {
-                if (_formKey.currentState!.validate() && _acceptConditions) {
-                  _formKey.currentState!.save();
-                  Navigator.pop(context, UserData(
-                    firstName: _firstName,
-                    lastName: _lastName,
-                    age: _age,
-                    gender: _gender,
-                    imagePath: _imagePath,
-                    id: 0,
-                    birthDate: _selectedDate!,
-                  ));
-                } else {
-                  // Handle form validation errors
-                }
-              },
-              child: const Text('Valider'),
-            ),
-          ],
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _submitForm,
+                child: Text('Valider'),
+              ),
+            ],
+          ),
         ),
       ),
     );
